@@ -26,7 +26,6 @@ SECRET_KEY = 'django-insecure-x$@qu3v1@+65_)nr_g!uqoq2nm%+cfg^jso02f#7$a#nyv4*nk
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    "https://dcchurchfinances.vercel.app",
     "dcfinances.alwaysdata.net",
     "localhost",
     "127.0.0.1",
@@ -34,10 +33,11 @@ ALLOWED_HOSTS = [
 
 CORS_ALLOWED_ORIGINS = [
     "https://dcchurchfinances.vercel.app",
-    "https://dcfinances.alwaysdata.net",
     "http://localhost:5176",
     "http://127.0.0.1:5176",
 ]
+
+CORS_ALLOW_CREDENTIALS = True
 
 # Application definition
 
