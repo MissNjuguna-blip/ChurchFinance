@@ -1,18 +1,30 @@
 from rest_framework import serializers
-from core.models import Member
+from core.models import Contribution
 
-class MemberSerializer(serializers.ModelSerializer):
+
+class ContributionSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Member
+        model = Contribution
         fields = [
             "id",
-            "first_name",
-            "last_name",
+            "member",
+            "contribution_type",
+            "amount",
+            "contribution_date",
+            "payment_method",
+            "recorded_by",
             "created_at",
             "updated_at",
         ]
         read_only_fields = [
             "id",
+            "recorded_by",
             "created_at",
             "updated_at",
         ]
+        extra_kwargs = {
+            "member": {
+                "required": False,
+                "allow_null": True,
+            },
+        }
