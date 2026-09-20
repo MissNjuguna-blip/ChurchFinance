@@ -1,10 +1,10 @@
+# core/models.py
+
 from decimal import Decimal
 
 from django.db import models
 from django.db.models import Sum
 from django.core.validators import MinValueValidator
-from django.contrib.auth.models import AbstractUser,BaseUserManager
-
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 
 
@@ -68,20 +68,40 @@ class BaseModel(models.Model):
     class Meta:
         abstract = True
 
+
 class Member(BaseModel):
-    first_name = models.CharField(max_length=100,blank=True,null=True)
-    last_name = models.CharField(max_length=100,blank=True,null=True)
+
+    first_name = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
+
+    last_name = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}".strip()
 
+
 class ContributionType(BaseModel):
-    
-    name = models.CharField(max_length=100,unique=True)
-    description = models.TextField(blank=True,null=True)
-    
+
+    name = models.CharField(
+        max_length=100,
+        unique=True
+    )
+
+    description = models.TextField(
+        blank=True,
+        null=True
+    )
+
     def __str__(self):
         return self.name
+
 
 class Contribution(BaseModel):
 
@@ -92,43 +112,46 @@ class Contribution(BaseModel):
         CARD = "CARD", "Card"
         OTHER = "OTHER", "Other"
 
-    member = models.ForeignKey(Member,on_delete=models.PROTECT,related_name="contributions",blank=True,null=True)
-    contribution_type = models.ForeignKey(ContributionType,on_delete=models.PROTECT,related_name="contributions")
-    amount = models.DecimalField(max_digits=15,decimal_places=2,validators=[MinValueValidator(Decimal("0.01"))])
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.PROTECT,
+        related_name="contributions",
+        blank=True,
+        null=True
+    )
+
+    contribution_type = models.ForeignKey(
+        ContributionType,
+        on_delete=models.PROTECT,
+        related_name="contributions"
+    )
+
+    # Negative values are now allowed.
+    amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2
+    )
+
     contribution_date = models.DateField()
-    payment_method = models.CharField(max_length=20,choices=PaymentMethod.choices,default=PaymentMethod.CASH)
-    recorded_by = models.ForeignKey(User,on_delete=models.PROTECT,related_name="recorded_contributions")
+
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.CASH
+    )
+
+    recorded_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="recorded_contributions"
+    )
+
     def __str__(self):
         return f"{self.contribution_type.name} - {self.amount}"
 
-    @classmethod
-    def total_contributions(cls):
-        total = cls.objects.aggregate(
-            total=Sum("amount")
-        )["total"]
-        return total or Decimal("0.00")
-
-    @classmethod
-    def total_expenses(cls):
-        
-        total = Expense.objects.filter(
-            status=Expense.Status.PAID
-        ).aggregate(
-            total=Sum("amount")
-        )["total"]
-
-        return total or Decimal("0.00")
-
-    @classmethod
-    def current_balance(cls):
-    
-        return (
-            cls.total_contributions()
-            - cls.total_expenses()
-        )
-
 
 class Expense(BaseModel):
+
     class PaymentMethod(models.TextChoices):
         CASH = "CASH", "Cash"
         MPESA = "MPESA", "M-Pesa"
@@ -144,16 +167,45 @@ class Expense(BaseModel):
         CANCELLED = "CANCELLED", "Cancelled"
 
     description = models.CharField(max_length=255)
-    amount = models.DecimalField(max_digits=15,decimal_places=2,validators=[MinValueValidator(Decimal("0.01"))])
+
+    # Negative values are now allowed.
+    amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2
+    )
+
     expense_date = models.DateField()
-    payment_method = models.CharField(max_length=20,choices=PaymentMethod.choices,default=PaymentMethod.CASH)
-    reference = models.CharField(max_length=100,blank=True,null=True)
-    status = models.CharField(max_length=20,choices=Status.choices,default=Status.PENDING)
-    recorded_by = models.ForeignKey(User,on_delete=models.PROTECT,related_name="recorded_expenses")
+
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.CASH
+    )
+
+    reference = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING
+    )
+
+    recorded_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="recorded_expenses"
+    )
+
     def __str__(self):
         return f"{self.description} - {self.amount}"
 
+
 class AuditLog(BaseModel):
+
     class Action(models.TextChoices):
         CREATE = "CREATE", "Create"
         UPDATE = "UPDATE", "Update"
@@ -162,11 +214,29 @@ class AuditLog(BaseModel):
         REJECT = "REJECT", "Reject"
         CANCEL = "CANCEL", "Cancel"
 
-    user = models.ForeignKey(User,on_delete=models.PROTECT,related_name="audit_logs")
-    action = models.CharField(max_length=20,choices=Action.choices)
-    model_name = models.CharField(max_length=100)
-    object_id = models.CharField(max_length=100)
-    description = models.TextField(blank=True,null=True)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="audit_logs"
+    )
+
+    action = models.CharField(
+        max_length=20,
+        choices=Action.choices
+    )
+
+    model_name = models.CharField(
+        max_length=100
+    )
+
+    object_id = models.CharField(
+        max_length=100
+    )
+
+    description = models.TextField(
+        blank=True,
+        null=True
+    )
 
     def __str__(self):
         return f"{self.user} - {self.action} - {self.model_name}"

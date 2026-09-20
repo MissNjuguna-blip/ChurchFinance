@@ -1,9 +1,11 @@
 from decimal import Decimal
+from datetime import datetime
 
 from django.contrib.auth import authenticate, get_user_model
 from django.db import transaction
 from django.db.models import Sum, Count, Avg
 from django.db.models.functions import TruncMonth
+from django.utils import timezone
 
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -268,9 +270,41 @@ def admin_dashboard(request):
 
     current_user = request.user
 
-    total_members = Member.objects.count()
+    
+    date_string = request.query_params.get("date")
+
+    if date_string:
+
+        try:
+            selected_date = datetime.strptime(
+                date_string,
+                "%Y-%m-%d"
+            ).date()
+
+        except ValueError:
+
+            return Response(
+                {
+                    "error": (
+                        "Invalid date format. "
+                        "Use YYYY-MM-DD."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    else:
+
+        selected_date = timezone.localdate()
+
     # =====================================================
-    # CONTRIBUTIONS
+    # TOTAL MEMBERS
+    # =====================================================
+
+    total_members = Member.objects.count()
+
+    # =====================================================
+    # ALL-TIME CONTRIBUTIONS
     # =====================================================
 
     contribution_stats = Contribution.objects.aggregate(
@@ -295,15 +329,19 @@ def admin_dashboard(request):
     )
 
     # =====================================================
-    # EXPENSES
+    # ALL-TIME EXPENSES
     # =====================================================
 
-    expense_stats = Expense.objects.filter(
-        status=Expense.Status.PAID
-    ).aggregate(
-        total=Sum("amount"),
-        count=Count("id"),
-        average=Avg("amount")
+    expense_stats = (
+        Expense.objects
+        .filter(
+            status=Expense.Status.PAID
+        )
+        .aggregate(
+            total=Sum("amount"),
+            count=Count("id"),
+            average=Avg("amount")
+        )
     )
 
     total_expenses = (
@@ -322,12 +360,84 @@ def admin_dashboard(request):
     )
 
     # =====================================================
-    # CURRENT BALANCE
+    # ALL-TIME CURRENT BALANCE
     # =====================================================
 
     current_balance = (
         total_contributions
         - total_expenses
+    )
+
+    # =====================================================
+    # SELECTED DAY CONTRIBUTIONS
+    # =====================================================
+
+    daily_contribution_stats = (
+        Contribution.objects
+        .filter(
+            contribution_date=selected_date
+        )
+        .aggregate(
+            total=Sum("amount"),
+            count=Count("id"),
+            average=Avg("amount")
+        )
+    )
+
+    daily_contributions = (
+        daily_contribution_stats["total"]
+        or Decimal("0.00")
+    )
+
+    daily_contribution_count = (
+        daily_contribution_stats["count"]
+        or 0
+    )
+
+    daily_average_contribution = (
+        daily_contribution_stats["average"]
+        or Decimal("0.00")
+    )
+
+    # =====================================================
+    # SELECTED DAY EXPENSES
+    # =====================================================
+
+    daily_expense_stats = (
+        Expense.objects
+        .filter(
+            expense_date=selected_date,
+            status=Expense.Status.PAID
+        )
+        .aggregate(
+            total=Sum("amount"),
+            count=Count("id"),
+            average=Avg("amount")
+        )
+    )
+
+    daily_expenses = (
+        daily_expense_stats["total"]
+        or Decimal("0.00")
+    )
+
+    daily_expense_count = (
+        daily_expense_stats["count"]
+        or 0
+    )
+
+    daily_average_expense = (
+        daily_expense_stats["average"]
+        or Decimal("0.00")
+    )
+
+    # =====================================================
+    # SELECTED DAY BALANCE
+    # =====================================================
+
+    daily_balance = (
+        daily_contributions
+        - daily_expenses
     )
 
     # =====================================================
@@ -351,10 +461,6 @@ def admin_dashboard(request):
 
     for contribution in recent_contributions:
 
-        # -------------------------------------------------
-        # MEMBER NAME
-        # -------------------------------------------------
-
         member_name = None
 
         if contribution.member:
@@ -364,28 +470,22 @@ def admin_dashboard(request):
                 f"{contribution.member.last_name}"
             ).strip()
 
-        # -------------------------------------------------
-        # RECORDED BY
-        # -------------------------------------------------
-
         recorded_by = None
 
         if contribution.recorded_by:
 
             recorded_by = {
                 "id": contribution.recorded_by.id,
+
                 "name": (
                     f"{contribution.recorded_by.first_name} "
                     f"{contribution.recorded_by.last_name}"
                 ).strip(),
+
                 "phone_number": (
                     contribution.recorded_by.phone_number
                 ),
             }
-
-        # -------------------------------------------------
-        # DATA
-        # -------------------------------------------------
 
         recent_contributions_data.append({
 
@@ -600,7 +700,7 @@ def admin_dashboard(request):
         {
 
             # =================================================
-            # AUTHENTICATED USER
+            # USER
             # =================================================
 
             "user": {
@@ -629,22 +729,16 @@ def admin_dashboard(request):
             },
 
             # =================================================
-            # SUMMARY
+            # DASHBOARD SUMMARY
+            #
+            # These are ALL-TIME totals.
             # =================================================
 
             "summary": {
 
-                # Members
                 "total_members":
                     total_members,
 
-                # "active_members":
-                #     active_members,
-
-                # "inactive_members":
-                #     inactive_members,
-
-                # Contributions
                 "total_contributions":
                     str(total_contributions),
 
@@ -654,7 +748,6 @@ def admin_dashboard(request):
                 "average_contribution":
                     str(average_contribution),
 
-                # Expenses
                 "total_expenses":
                     str(total_expenses),
 
@@ -664,9 +757,41 @@ def admin_dashboard(request):
                 "average_expense":
                     str(average_expense),
 
-                # Balance
                 "current_balance":
                     str(current_balance),
+            },
+
+            # =================================================
+            # DAILY SUMMARY
+            #
+            # These are for the selected date.
+            # =================================================
+
+            "daily_summary": {
+
+                "date":
+                    selected_date.isoformat(),
+
+                "contributions":
+                    str(daily_contributions),
+
+                "contribution_count":
+                    daily_contribution_count,
+
+                "average_contribution":
+                    str(daily_average_contribution),
+
+                "expenses":
+                    str(daily_expenses),
+
+                "expense_count":
+                    daily_expense_count,
+
+                "average_expense":
+                    str(daily_average_expense),
+
+                "balance":
+                    str(daily_balance),
             },
 
             # =================================================
